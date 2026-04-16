@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>藥物給藥護理完整題庫 (80題)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Noto Sans TC', sans-serif; background-color: #FFFFFF; color: #1F1F1F; overflow-x: hidden; touch-action: manipulation; }
+        .card-container { perspective: 1000px; width: 100%; max-width: 450px; height: 320px; position: relative; }
+        .card-inner {
+            position: relative; width: 100%; height: 100%; text-align: center;
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d; cursor: pointer;
+        }
+        .card-inner.is-flipped { transform: rotateY(180deg); }
+        .card-face {
+            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 2rem; border-radius: 1.5rem; border: 1px solid #E5E7EB;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04);
+        }
+        .card-front { background-color: #F9FAFB; }
+        .card-back { background-color: #F0F7FF; transform: rotateY(180deg); color: #1A56DB; }
+        
+        .feedback-overlay {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            font-size: 8rem; font-weight: bold; z-index: 50; pointer-events: none;
+            opacity: 0; transform: scale(0.5);
+        }
+        .animate-feedback { animation: feedbackPop 0.5s ease-out forwards; }
+        @keyframes feedbackPop {
+            0% { opacity: 0; transform: scale(0.4); }
+            30% { opacity: 0.9; transform: scale(1.1); }
+            100% { opacity: 0; transform: scale(1.3); }
+        }
+
+        .badge {
+            position: absolute; top: 1rem; right: 1rem; width: 28px; height: 28px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: bold; opacity: 0; transition: all 0.3s;
+        }
+        .badge.show { opacity: 1; }
+        .badge-correct { background-color: #DCFCE7; color: #16A34A; }
+        .badge-wrong { background-color: #FEE2E2; color: #DC2626; }
+        .badge-skipped { background-color: #F3F4F6; color: #6B7280; }
+
+        .btn-circle {
+            width: 64px; height: 64px; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; transition: all 0.2s;
+            border: 1px solid #E5E7EB; background: white;
+        }
+        .btn-circle:active { transform: scale(0.9); background: #F3F4F6; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between py-10 px-6">
+
+    <div class="w-full max-w-[450px] space-y-4">
+        <div class="flex justify-between items-end">
+            <div>
+                <span id="current-mode" class="text-[10px] font-black text-blue-500 uppercase tracking-widest block mb-1">精進模式</span>
+                <span class="text-2xl font-bold tracking-tighter" id="counter">1 / --</span>
+            </div>
+            <div class="flex gap-1.5">
+                <div class="text-center px-2">
+                    <p class="text-[9px] font-bold text-gray-400 uppercase">學會</p>
+                    <p id="learned-stat" class="font-bold text-green-600">0</p>
+                </div>
+                <div class="text-center px-2 border-l">
+                    <p class="text-[9px] font-bold text-gray-400 uppercase">不熟</p>
+                    <p id="wrong-stat" class="font-bold text-red-600">0</p>
+                </div>
+                <div class="text-center px-2 border-l">
+                    <p class="text-[9px] font-bold text-gray-400 uppercase">跳過</p>
+                    <p id="skip-stat" class="font-bold text-gray-500">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+            <div id="progress-fill" class="h-full bg-black transition-all duration-500" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <div class="card-container">
+        <div id="feedback" class="feedback-overlay"></div>
+        <div id="card" class="card-inner">
+            <div class="card-face card-front">
+                <div id="badge-front" class="badge"></div>
+                <span class="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-6">藥物給藥題庫 (80題)</span>
+                <p id="question" class="text-lg font-medium leading-relaxed text-gray-800 px-4"></p>
+            </div>
+            <div class="card-face card-back">
+                <span class="text-[10px] font-black text-blue-300 uppercase tracking-widest mb-6">正確答案</span>
+                <p id="answer" class="text-xl font-bold px-4"></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="w-full max-w-[450px] flex flex-col items-center gap-8">
+        <div class="flex items-center gap-6">
+            <button id="mark-wrong" class="btn-circle shadow-sm">
+                <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            
+            <button id="mark-skip" class="flex flex-col items-center group">
+                <div class="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center bg-gray-50 group-active:scale-95 transition-all">
+                    <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                </div>
+                <span class="text-[9px] font-black text-gray-400 mt-2 tracking-tighter">SKIP</span>
+            </button>
+
+            <button id="mark-correct" class="btn-circle shadow-sm">
+                <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+            </button>
+        </div>
+        
+        <div class="flex gap-10 items-center text-[10px] font-black text-gray-300 uppercase tracking-widest">
+            <button id="prev" class="hover:text-black">PREV</button>
+            <button id="restart" class="hover:text-red-500 border-x px-6">RESET</button>
+            <button id="next" class="hover:text-black">NEXT</button>
+        </div>
+    </div>
+
+    <script>
+        const allData = [
+            ["給藥的主要目的中，哪一項是為了維持生理平衡？", "維持正常的生理功能。"],
+            ["除了預防與治療疾病外，給藥還有哪兩項主要目的？", "協助診斷與減輕症狀。"],
+            ["藥物代謝主要在人體的哪一個器官進行？", "肝臟。"],
+            ["何謂「首渡效應」 (first-pass effect)？", "藥物進入全身血液循環前，先在肝臟或胃腸道被代謝而減弱藥效的現象。"],
+            ["藥物作用中，「治療作用」的定義為何？", "具有治療目的且符合病人利益的作用。"],
+            ["藥物對組織產生的治療以外之不良作用稱為什麼？", "副作用。"],
+            ["若兩藥合用的效果等於個別藥效之和 (A=1, B=2, A+B=3)，稱為什麼作用？", "相加作用 (Addition)。"],
+            ["若兩藥合用的效果大於個別藥效之和 (A=1, B=2, A+B>3)，稱為什麼作用？", "協同作用 (Synergism)。"],
+            ["若兩藥合用的效果小於個別藥效之和 (A=1, B=2, A+B<3)，稱為什麼作用？", "拮抗作用 (Antagonism)。"],
+            ["長期服用藥物後，一旦停藥會產生心理不適，此現象稱為什麼？", "習慣性 (Habituation)。"],
+            ["藥物成癮性 (Addiction) 通常會伴隨什麼臨床症狀？", "戒斷症狀 (withdrawal syndrome)。"],
+            ["依據藥品的化學組成來命名的名稱稱為什麼？", "化學名 (Chemical name)。"],
+            ["由藥廠對新藥所做的商品命名稱為什麼？", "商品名 (Brand name)。"],
+            ["經法定單位認認可並於世界各地流通的正式藥名稱為什麼？", "學名 (General name)。"],
+            ["給藥過程中的「三讀」具體動作為何？", "核對藥名，並逐字唸出標籤上的藥物名稱。"],
+            ["給藥程序中，哪兩個步驟需要執行洗手？", "取藥前與整理完藥物後。"],
+            ["給藥「五對」原則包含：病人對、藥物對、時間對、途徑對以及哪一項？", "劑量對。"],
+            ["執行「病人對」時，應核對醫囑單上的姓名與哪兩處標示是否符合？", "床頭卡或手圈。"],
+            ["發藥時，除了詢問病人姓名，還應執行什麼動作以確認身分？", "呼叫病人全名。"],
+            ["給藥時間縮寫 「q.d.」 的中文意義為何？", "每日。"],
+            ["給藥時間縮寫 「q.o.d.」 代表的頻率為何？", "每隔一日。"],
+            ["給藥時間縮寫 「b.i.d.」 的中文意義為何？", "一天兩次。"],
+            ["給藥時間縮寫 「t.i.d.」 的中文意義為何？", "一天三次。"],
+            ["給藥時間縮寫 「q.i.d.」 的中文意義為何？", "一天四次。"],
+            ["給藥時間縮寫 「q.4.h.」 代表什麼？", "每 4 小時一次。"],
+            ["給藥時間縮寫 「St.」 代表的意義為何？", "立即 (immediately)。"],
+            ["口服給藥 (Oral Administration) 的主要優點為何？", "最簡單、方便、經濟且安全。"],
+            ["口服藥物若會產生味道不佳或對牙齒有損害，屬於該給藥法的什麼？", "缺點。"],
+            ["急症病人通常不採用口服，而優先選擇注射法的原因為何？", "注射法藥效迅速、正確，可達預期吸收效果。"],
+            ["注射法 (Injection) 最主要的缺點之一，除了引起焦慮疼痛外還有什麼？", "危險性大（感染、組織損傷、過敏）。"],
+            ["肌肉注射法 (IM) 的藥物吸收速度為何比皮下注射快？", "因為肌肉層的血流供應較多。"],
+            ["皮下注射 (SC) 的藥物吸收率相較於口服與肌肉注射的順序為何？", "比肌肉注射慢，比口服快。"],
+            ["為何皮下注射 (SC) 通常比肌肉注射更令病人感到不適？", "因為皮下組織分布有較多疼痛接受器。"],
+            ["皮下注射 (SC) 時，若病人過瘦或欲減少刺激，護理人員應如何處理皮膚？", "注射時可輕捏皮膚。"],
+            ["哪兩類藥物在皮下注射 (SC) 後「不可」進行按摩？", "肝素 (Heparin) 與胰島素 (Insulin)。"],
+            ["皮下注射 (SC) 建議的進針角度範圍為何？", "一般以 45 至 60 度角進針。"],
+            ["皮內注射 (ID) 拔出針頭後，應注意哪項動作是禁止的？", "不可按揉注射部位。"],
+            ["執行皮內注射 (ID) 時，一般建議使用何種消毒劑？", "75% 酒精。"],
+            ["藥效最迅速但風險也最高的注射途徑為何？", "靜脈注射法 (IV)。"],
+            ["靜脈注射法 (IV) 的合併症中，涉及空氣進入血管的現象稱為什麼？", "空氣栓塞。"],
+            ["靜脈注射法除了藥效快，還有什麼診斷上的用途？", "可抽取血液標本協助診斷。"],
+            ["壓力定量吸入器 (pMDI) 在 20 世紀末因環境傷害考量，將推進劑改為何種物質？", "氫氟烷化合物 (HFA)。"],
+            ["乾粉吸入器 (DPI) 的霧化驅動力來源為何？", "病患的主動式吸力。"],
+            ["若病患的吸氣動力不足，將會影響哪種吸入器的效率？", "乾粉吸入器 (DPI)。"],
+            ["軟霧吸入器 (SMI) 產生的細小氣霧粒子，其直徑通常少於多少？", "5.8 微米。"],
+            ["小容積噴霧器 (SVN) 主要屬於哪種類型？", "氣動噴射型霧化器 (jet nebulizer)。"],
+            ["肛門栓劑進入直腸後如何發揮作用？", "遇體溫後溶解並由直腸吸收。"],
+            ["執行直腸給藥時，病人的正確臥姿為何？", "側躺（Sims position），下方腿伸直，上方腿彎曲。"],
+            ["直腸栓劑應塞入肛門通過括約肌約多少深度？", "約 2.5 公分深。"],
+            ["給予直腸栓劑後，應請病人持續躺下約多久？", "15 分鐘。"],
+            ["陰道栓劑給藥前，可使用什麼物質潤滑？", "凡士林、潤滑劑或溫水。"],
+            ["執行陰道給藥時，建議將塞劑推入陰道深處約多少距離？", "3 至 5 公分。"],
+            ["眼滴入法應將藥物滴入眼睛的哪一個部位？", "眼結膜下窟窿處。"],
+            ["執行眼滴入法時，為何「不可」將藥水直接滴在角膜上？", "因為角膜富含痛覺神經且較敏感。"],
+            ["若需同時使用水溶液與油劑眼藥水，給藥順序應為何？", "先點水溶液，再點油劑。"],
+            ["鼻滴入法 (nasal instillation) 除了治療感染外，還有什麼主要作用？", "減輕鼻黏膜腫脹。"],
+            ["執行鼻滴入法時，滴管尖端應避免接觸鼻黏膜的原因為何？", "防止污染或刺激病人打噴嚏。"],
+            ["耳滴入法 (ear instillation) 給藥前，應先將藥物加溫至？", "與體溫相近之溫度。"],
+            ["耳滴藥物若過冷，可能會導致病人出現什麼不適症狀？", "頭暈。"],
+            ["膀胱滴入法常用於治療膀胱發炎或哪一種情況？", "膀胱沾黏。"],
+            ["舌下含服法 (Sublingual) 的主要優點為何？", "可達快速吸收之目的（全身性作用）。"],
+            ["使用硝酸甘油脂 (NTG) 治療心絞痛時，含藥後應注意什麼？", "含服後 15 至 30 分鐘內應休息。"],
+            ["舌下含服藥物時，病人應避免哪兩項動作？", "勿嚼食與勿吞服。"],
+            ["經鼻胃管給藥時，協助病人採坐姿或半坐臥姿的目的是？", "減少吸入性肺炎的發生。"],
+            ["經鼻胃管給予固體藥物前，應如何處理藥物？", "先將藥物磨碎並溶於溫水中。"],
+            ["鼻胃管灌藥前後，應使用多少溫開水沖洗管路？", "30 至 45 毫升 (ml)。"],
+            ["執行皮膚塗擦法時，若皮膚有傷口應採何種技術？", "無菌技術。"],
+            ["皮膚塗擦藥物時，應以何種手法塗抹藥物？", "旋轉或環形手法。"],
+            ["經皮給藥法 (TTS) 在血液中的濃度表現為何？", "可達到穩定的血中濃度。"],
+            ["經皮給藥法 (TTS) 的兩個主要特性為「非侵入式」以及？", "效果持久。"],
+            ["藥物作用中，若 A=1, B=2, A+B < 3，此為何種關係？", "拮抗作用 (Antagonism)。"],
+            ["口服藥物中，哪種劑型最容易被胃酸破壞？", "未受保護的錠劑或粉劑。"],
+            ["給藥程序中，「三讀」分別在何時執行？", "取藥時、備藥時、放回藥櫃前（或給藥前）。"],
+            ["給藥時間縮寫 「St.」 是哪一個拉丁單字的簡寫？", "Statim。"],
+            ["皮下注射 (SC) 常用於哪些藥物？", "肝素 (Heparin) 與胰島素 (Insulin)。"],
+            ["皮內注射 (ID) 的主要目的是什麼？", "通常用於過敏試驗（如結核菌素試驗）。"],
+            ["何種吸入器不含推進劑，且第一代於 1991 年上市？", "軟霧吸入器 (SMI)。"],
+            ["耳滴藥時，藥液應沿著哪裡滴入？", "沿著耳道壁滴入。"],
+            ["經皮給藥貼片最常見的臨床應用實例為何？", "止痛皮膚貼片。"],
+            ["口服給藥法若藥物對牙齒有損害，這屬於該途徑的？", "缺點。"]
+        ];
+
+        let index = 0;
+        let stats = {}; 
+        let currentQueue = allData.map((d, i) => ({ q: d[0], a: d[1], origIdx: i }));
+
+        const card = document.getElementById('card');
+        const feedback = document.getElementById('feedback');
+        const badgeFront = document.getElementById('badge-front');
+
+        function updateDisplay() {
+            card.classList.remove('is-flipped');
+            setTimeout(() => {
+                const item = currentQueue[index];
+                document.getElementById('question').textContent = item.q;
+                document.getElementById('answer').textContent = item.a;
+                document.getElementById('counter').textContent = `${index + 1} / ${currentQueue.length}`;
+                document.getElementById('progress-fill').style.width = `${((index + 1) / currentQueue.length) * 100}%`;
+                
+                const vals = Object.values(stats);
+                document.getElementById('learned-stat').textContent = vals.filter(v => v === 'learned').length;
+                document.getElementById('wrong-stat').textContent = vals.filter(v => v === 'wrong').length;
+                document.getElementById('skip-stat').textContent = vals.filter(v => v === 'skipped').length;
+
+                const status = stats[item.origIdx];
+                badgeFront.className = 'badge';
+                if (status === 'learned') {
+                    badgeFront.classList.add('badge-correct', 'show');
+                    badgeFront.innerHTML = 'O';
+                } else if (status === 'wrong') {
+                    badgeFront.classList.add('badge-wrong', 'show');
+                    badgeFront.innerHTML = 'X';
+                } else if (status === 'skipped') {
+                    badgeFront.classList.add('badge-skipped', 'show');
+                    badgeFront.innerHTML = '→';
+                }
+            }, 150);
+        }
+
+        function triggerFeedback(type) {
+            let symbol = '';
+            let colorClass = '';
+            if (type === 'learned') { symbol = 'O'; colorClass = 'text-green-500'; }
+            else if (type === 'wrong') { symbol = 'X'; colorClass = 'text-red-500'; }
+            else { symbol = '→'; colorClass = 'text-gray-400'; }
+
+            feedback.textContent = symbol;
+            feedback.className = `feedback-overlay animate-feedback ${colorClass}`;
+            feedback.addEventListener('animationend', () => {
+                feedback.className = 'feedback-overlay';
+            }, { once: true });
+        }
+
+        function mark(type) {
+            const item = currentQueue[index];
+            stats[item.origIdx] = type;
+            triggerFeedback(type);
+            
+            setTimeout(() => {
+                if (index < currentQueue.length - 1) {
+                    index++;
+                    updateDisplay();
+                } else {
+                    finishSession();
+                }
+            }, 450);
+        }
+
+        function finishSession() {
+            const wrongIdxs = currentQueue.filter(d => stats[d.origIdx] === 'wrong').map(d => d.origIdx);
+            const skipIdxs = currentQueue.filter(d => stats[d.origIdx] === 'skipped').map(d => d.origIdx);
+            const needReview = [...new Set([...wrongIdxs, ...skipIdxs])];
+
+            if (needReview.length > 0) {
+                if (confirm(`本輪結束！\n不熟：${wrongIdxs.length} 題\n跳過：${skipIdxs.length} 題\n\n是否進入「複習模式」？`)) {
+                    currentQueue = needReview.map(i => ({ q: allData[i][0], a: allData[i][1], origIdx: i }));
+                    index = 0;
+                    document.getElementById('current-mode').textContent = "複習模式";
+                    document.getElementById('current-mode').classList.replace('text-blue-500', 'text-red-500');
+                    updateDisplay();
+                    return;
+                }
+            } else {
+                alert("恭喜！您已成功掌握所有 80 道題目！");
+            }
+            resetAll();
+        }
+
+        function resetAll() {
+            stats = {}; index = 0;
+            currentQueue = allData.map((d, i) => ({ q: d[0], a: d[1], origIdx: i }));
+            document.getElementById('current-mode').textContent = "精進模式";
+            document.getElementById('current-mode').classList.replace('text-red-500', 'text-blue-500');
+            updateDisplay();
+        }
+
+        card.onclick = () => card.classList.toggle('is-flipped');
+        document.getElementById('mark-correct').onclick = () => mark('learned');
+        document.getElementById('mark-wrong').onclick = () => mark('wrong');
+        document.getElementById('mark-skip').onclick = () => mark('skipped');
+        document.getElementById('next').onclick = () => { if (index < currentQueue.length - 1) { index++; updateDisplay(); } };
+        document.getElementById('prev').onclick = () => { if (index > 0) { index--; updateDisplay(); } };
+        document.getElementById('restart').onclick = () => { if(confirm("確定要重置進度嗎？")) resetAll(); };
+
+        updateDisplay();
+    </script>
+</body>
+</html>
